@@ -7,3 +7,6 @@
 [submodule "analytics-service"]
 	path = analytics-service
 	url = https://github.com/YusuffBulbul/analytics-service.git
+[submodule "api-gateway"]
+	path = api-gateway
+	url = https://github.com/YusuffBulbul/api-gateway.git
