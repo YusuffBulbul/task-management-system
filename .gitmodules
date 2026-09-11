@@ -4,3 +4,6 @@
 [submodule "notification-service"]
 	path = notification-service
 	url = https://github.com/YusuffBulbul/notification-service.git
+[submodule "analytics-service"]
+	path = analytics-service
+	url = https://github.com/YusuffBulbul/analytics-service.git
