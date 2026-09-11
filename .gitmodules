@@ -10,3 +10,6 @@
 [submodule "api-gateway"]
 	path = api-gateway
 	url = https://github.com/YusuffBulbul/api-gateway.git
+[submodule "frontend"]
+	path = frontend
+	url = https://github.com/YusuffBulbul/frontend.git
