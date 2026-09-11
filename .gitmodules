@@ -1,3 +1,6 @@
 [submodule "task-service"]
 	path = task-service
 	url = https://github.com/YusuffBulbul/task-service.git
+[submodule "notification-service"]
+	path = notification-service
+	url = https://github.com/YusuffBulbul/notification-service.git
