@@ -50,6 +50,7 @@ pipeline {
             steps {
                 sh '''
                     docker build \
+                      --load \
                       --file task-service/Containerfile \
                       --tag ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG} \
                       task-service
@@ -82,7 +83,10 @@ pipeline {
 
     post {
         success {
-            echo "Task Service image pushed: ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
+            echo """
+                Task Service image successfully pushed:
+                ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}
+            """
         }
 
         failure {
@@ -90,7 +94,10 @@ pipeline {
         }
 
         always {
-            sh 'docker logout "$DOCKER_REGISTRY" || true'
+            sh '''
+                docker logout "$DOCKER_REGISTRY" || true
+            '''
+
             deleteDir()
         }
     }
