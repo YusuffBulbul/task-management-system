@@ -11,6 +11,7 @@ pipeline {
         DOCKER_REGISTRY = 'docker.io'
         DOCKER_NAMESPACE = 'yusuffbulbul'
         IMAGE_TAG = "1.0.${BUILD_NUMBER}"
+        OPENSHIFT_NAMESPACE = 'yusuffbulbul-dev'
     }
 
     stages {
@@ -180,21 +181,77 @@ pipeline {
                 }
             }
         }
+
+        stage('Deploy to OpenShift') {
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'openshift-token',
+                        variable: 'OPENSHIFT_TOKEN'
+                    ),
+                    string(
+                        credentialsId: 'openshift-server',
+                        variable: 'OPENSHIFT_SERVER'
+                    )
+                ]) {
+                    sh '''
+                        oc login \
+                          --server="$OPENSHIFT_SERVER" \
+                          --token="$OPENSHIFT_TOKEN"
+
+                        oc project "$OPENSHIFT_NAMESPACE"
+
+                        oc set image deployment/task-service \
+                          task-service=${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-service:${IMAGE_TAG}
+
+                        oc set image deployment/notification-service \
+                          notification-service=${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/notification-service:${IMAGE_TAG}
+
+                        oc set image deployment/analytics-service \
+                          analytics-service=${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/analytics-service:${IMAGE_TAG}
+
+                        oc set image deployment/api-gateway \
+                          api-gateway=${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/api-gateway:${IMAGE_TAG}
+
+                        oc set image deployment/frontend \
+                          frontend=${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-management-frontend:${IMAGE_TAG}
+
+                        oc rollout status deployment/task-service \
+                          --timeout=300s
+
+                        oc rollout status deployment/notification-service \
+                          --timeout=300s
+
+                        oc rollout status deployment/analytics-service \
+                          --timeout=300s
+
+                        oc rollout status deployment/api-gateway \
+                          --timeout=300s
+
+                        oc rollout status deployment/frontend \
+                          --timeout=300s
+                    '''
+                }
+            }
+        }
     }
 
     post {
         success {
             echo """
-                All application images were successfully pushed.
+                CI/CD pipeline completed successfully.
 
                 Version: ${IMAGE_TAG}
 
-                Images:
+                Docker Hub images:
                 ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-service:${IMAGE_TAG}
                 ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/notification-service:${IMAGE_TAG}
                 ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/analytics-service:${IMAGE_TAG}
                 ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/api-gateway:${IMAGE_TAG}
                 ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-management-frontend:${IMAGE_TAG}
+
+                OpenShift project:
+                ${OPENSHIFT_NAMESPACE}
             """
         }
 
@@ -205,6 +262,7 @@ pipeline {
         always {
             sh '''
                 docker logout "$DOCKER_REGISTRY" || true
+                oc logout || true
             '''
 
             deleteDir()
