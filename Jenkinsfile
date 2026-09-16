@@ -10,7 +10,6 @@ pipeline {
     environment {
         DOCKER_REGISTRY = 'docker.io'
         DOCKER_NAMESPACE = 'yusuffbulbul'
-        IMAGE_NAME = 'task-service'
         IMAGE_TAG = "1.0.${BUILD_NUMBER}"
     }
 
@@ -46,19 +45,109 @@ pipeline {
             }
         }
 
+        stage('Notification Service Test') {
+            steps {
+                dir('notification-service') {
+                    sh '''
+                        mvn clean test \
+                          -Dspring.kafka.listener.auto-startup=false
+                    '''
+                }
+            }
+        }
+
+        stage('Analytics Service Test') {
+            steps {
+                dir('analytics-service') {
+                    sh '''
+                        mvn clean test \
+                          -Dspring.kafka.listener.auto-startup=false
+                    '''
+                }
+            }
+        }
+
+        stage('API Gateway Test') {
+            steps {
+                dir('api-gateway') {
+                    sh 'mvn clean test'
+                }
+            }
+        }
+
+        stage('Frontend Test and Build') {
+            steps {
+                dir('frontend') {
+                    sh '''
+                        npm ci
+                        npm run lint
+                        npm run build
+                    '''
+                }
+            }
+        }
+
         stage('Build Task Service Image') {
             steps {
                 sh '''
                     docker build \
                       --load \
                       --file task-service/Containerfile \
-                      --tag ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG} \
+                      --tag ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-service:${IMAGE_TAG} \
                       task-service
                 '''
             }
         }
 
-        stage('Push Task Service Image') {
+        stage('Build Notification Service Image') {
+            steps {
+                sh '''
+                    docker build \
+                      --load \
+                      --file notification-service/Containerfile \
+                      --tag ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/notification-service:${IMAGE_TAG} \
+                      notification-service
+                '''
+            }
+        }
+
+        stage('Build Analytics Service Image') {
+            steps {
+                sh '''
+                    docker build \
+                      --load \
+                      --file analytics-service/Containerfile \
+                      --tag ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/analytics-service:${IMAGE_TAG} \
+                      analytics-service
+                '''
+            }
+        }
+
+        stage('Build API Gateway Image') {
+            steps {
+                sh '''
+                    docker build \
+                      --load \
+                      --file api-gateway/Containerfile \
+                      --tag ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/api-gateway:${IMAGE_TAG} \
+                      api-gateway
+                '''
+            }
+        }
+
+        stage('Build Frontend Image') {
+            steps {
+                sh '''
+                    docker build \
+                      --load \
+                      --file frontend/Containerfile \
+                      --tag ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-management-frontend:${IMAGE_TAG} \
+                      frontend
+                '''
+            }
+        }
+
+        stage('Push Images to Docker Hub') {
             steps {
                 withCredentials([
                     usernamePassword(
@@ -74,7 +163,19 @@ pipeline {
                             --password-stdin
 
                         docker push \
-                          ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}
+                          ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-service:${IMAGE_TAG}
+
+                        docker push \
+                          ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/notification-service:${IMAGE_TAG}
+
+                        docker push \
+                          ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/analytics-service:${IMAGE_TAG}
+
+                        docker push \
+                          ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/api-gateway:${IMAGE_TAG}
+
+                        docker push \
+                          ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-management-frontend:${IMAGE_TAG}
                     '''
                 }
             }
@@ -84,8 +185,16 @@ pipeline {
     post {
         success {
             echo """
-                Task Service image successfully pushed:
-                ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}
+                All application images were successfully pushed.
+
+                Version: ${IMAGE_TAG}
+
+                Images:
+                ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-service:${IMAGE_TAG}
+                ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/notification-service:${IMAGE_TAG}
+                ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/analytics-service:${IMAGE_TAG}
+                ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/api-gateway:${IMAGE_TAG}
+                ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-management-frontend:${IMAGE_TAG}
             """
         }
 
