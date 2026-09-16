@@ -4,6 +4,14 @@ Kafka tabanlı asenkron olay akışları kullanan, bağımsız geliştirilebilen
 
 Proje; görev yönetimi, bildirim üretimi, analitik veri oluşturma, merkezi API yönlendirme ve web arayüzü bileşenlerini uçtan uca çalışan bir mimari içerisinde birleştirir.
 
+## Canlı Uygulama
+
+[Task Management System uygulamasını aç](https://task-management-yusuffbulbul-dev.apps.rm2.thpm.p1.openshiftapps.com/tasks)
+
+> Uygulama OpenShift Developer Sandbox üzerinde çalışmaktadır. Sandbox’ın kullanım süresi veya kaynak sınırları nedeniyle bağlantı geçici olarak erişilemez durumda olabilir.
+
+
+
 ## Proje Durumu
 
 Aşağıdaki süreçler başarıyla tamamlanmıştır:
