@@ -14,6 +14,7 @@ pipeline {
         OPENSHIFT_NAMESPACE = 'yusuffbulbul-dev'
         HELM_RELEASE_NAME = 'task-management'
         HELM_CHART_PATH = 'helm/task-management'
+        HELM_VALUES_FILE = 'helm/task-management/values-dev.yaml'
     }
 
     stages {
@@ -93,15 +94,17 @@ pipeline {
         stage('Validate Helm Chart') {
             steps {
                 sh '''
-                    helm lint "${HELM_CHART_PATH}"
+                    helm lint "${HELM_CHART_PATH}" \
+                      --values "${HELM_VALUES_FILE}"
 
                     helm template "${HELM_RELEASE_NAME}" \
                       "${HELM_CHART_PATH}" \
                       --namespace "${OPENSHIFT_NAMESPACE}" \
+                      --values "${HELM_VALUES_FILE}" \
                       --set-string global.imageTag="${IMAGE_TAG}" \
                       > /tmp/task-management-rendered.yaml
 
-                    echo "Helm chart validation completed successfully."
+                    echo "Helm dev profile validation completed successfully."
                 '''
             }
         }
@@ -222,6 +225,7 @@ pipeline {
                         helm upgrade --install "$HELM_RELEASE_NAME" \
                           "$HELM_CHART_PATH" \
                           --namespace "$OPENSHIFT_NAMESPACE" \
+                          --values "$HELM_VALUES_FILE" \
                           --set-string global.imageTag="$IMAGE_TAG" \
                           --take-ownership \
                           --wait \
@@ -259,7 +263,8 @@ pipeline {
                 ${IMAGE_TAG}
 
                 Helm release:
-                ${HELM_RELEASE_NAME}
+                Helm values profile:
+                ${HELM_VALUES_FILE}
 
                 Docker Hub images:
                 ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-service:${IMAGE_TAG}
