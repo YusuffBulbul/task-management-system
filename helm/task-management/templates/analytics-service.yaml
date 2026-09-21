@@ -9,6 +9,7 @@ metadata:
     app.kubernetes.io/component: backend
     {{- include "task-management.labels" . | nindent 4 }}
 spec:
+  revisionHistoryLimit: {{ .Values.global.revisionHistoryLimit }}
   replicas: {{ .Values.analyticsService.deployment.replicas }}
   selector:
     matchLabels:

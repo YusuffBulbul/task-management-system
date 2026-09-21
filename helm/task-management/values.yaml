@@ -3,6 +3,7 @@ global:
   imageNamespace: yusuffbulbul
   imageTag: "1.0.5"
   imagePullPolicy: Always
+  revisionHistoryLimit: 2
 
 mongodb:
   enabled: true

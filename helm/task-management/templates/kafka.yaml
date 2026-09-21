@@ -29,6 +29,7 @@ metadata:
     app.kubernetes.io/name: kafka
     app.kubernetes.io/component: messaging
 spec:
+  revisionHistoryLimit: {{ .Values.global.revisionHistoryLimit }}
   replicas: 1
   strategy:
     type: Recreate

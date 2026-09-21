@@ -29,6 +29,7 @@ metadata:
     app.kubernetes.io/name: mongodb
     app.kubernetes.io/component: database
 spec:
+  revisionHistoryLimit: {{ .Values.global.revisionHistoryLimit }}
   replicas: 1
   strategy:
     type: Recreate
