@@ -7,14 +7,25 @@ pipeline {
         timestamps()
     }
 
+    parameters {
+        choice(
+            name: 'DEPLOY_ENV',
+            choices: ['dev', 'test', 'prod'],
+            description: 'Helm yapılandırmasının çalıştırılacağı ortam'
+        )
+    }
+
     environment {
         DOCKER_REGISTRY = 'docker.io'
         DOCKER_NAMESPACE = 'yusuffbulbul'
         IMAGE_TAG = "1.0.${BUILD_NUMBER}"
-        OPENSHIFT_NAMESPACE = 'yusuffbulbul-dev'
-        HELM_RELEASE_NAME = 'task-management'
+
         HELM_CHART_PATH = 'helm/task-management'
-        HELM_VALUES_FILE = 'helm/task-management/values-dev.yaml'
+
+        OPENSHIFT_NAMESPACE = ''
+        HELM_RELEASE_NAME = ''
+        HELM_VALUES_FILE = ''
+        DEPLOY_ENABLED = 'false'
     }
 
     stages {
@@ -35,6 +46,50 @@ pipeline {
                         trackingSubmodules: false
                     ]]
                 ])
+            }
+        }
+
+        stage('Configure Environment') {
+            steps {
+                script {
+                    switch (params.DEPLOY_ENV) {
+                        case 'dev':
+                            env.OPENSHIFT_NAMESPACE = 'yusuffbulbul-dev'
+                            env.HELM_RELEASE_NAME = 'task-management'
+                            env.HELM_VALUES_FILE =
+                                'helm/task-management/values-dev.yaml'
+                            env.DEPLOY_ENABLED = 'true'
+                            break
+
+                        case 'test':
+                            env.OPENSHIFT_NAMESPACE = 'yusuffbulbul-test'
+                            env.HELM_RELEASE_NAME = 'task-management-test'
+                            env.HELM_VALUES_FILE =
+                                'helm/task-management/values-test.yaml'
+                            env.DEPLOY_ENABLED = 'false'
+                            break
+
+                        case 'prod':
+                            env.OPENSHIFT_NAMESPACE = 'yusuffbulbul-prod'
+                            env.HELM_RELEASE_NAME = 'task-management-prod'
+                            env.HELM_VALUES_FILE =
+                                'helm/task-management/values-prod.yaml'
+                            env.DEPLOY_ENABLED = 'false'
+                            break
+
+                        default:
+                            error(
+                                "Unsupported environment: ${params.DEPLOY_ENV}"
+                            )
+                    }
+
+                    echo """
+                        Selected environment: ${params.DEPLOY_ENV}
+                        Helm values file: ${env.HELM_VALUES_FILE}
+                        Target namespace: ${env.OPENSHIFT_NAMESPACE}
+                        Deployment enabled: ${env.DEPLOY_ENABLED}
+                    """
+                }
             }
         }
 
@@ -104,12 +159,17 @@ pipeline {
                       --set-string global.imageTag="${IMAGE_TAG}" \
                       > /tmp/task-management-rendered.yaml
 
-                    echo "Helm dev profile validation completed successfully."
+                    echo "Helm ${DEPLOY_ENV} profile validation completed successfully."
                 '''
             }
         }
 
         stage('Build Task Service Image') {
+            when {
+                expression {
+                    env.DEPLOY_ENABLED == 'true'
+                }
+            }
             steps {
                 sh '''
                     docker build \
@@ -122,6 +182,11 @@ pipeline {
         }
 
         stage('Build Notification Service Image') {
+            when {
+                expression {
+                    env.DEPLOY_ENABLED == 'true'
+                }
+            }
             steps {
                 sh '''
                     docker build \
@@ -134,6 +199,11 @@ pipeline {
         }
 
         stage('Build Analytics Service Image') {
+            when {
+                expression {
+                    env.DEPLOY_ENABLED == 'true'
+                }
+            }
             steps {
                 sh '''
                     docker build \
@@ -146,6 +216,11 @@ pipeline {
         }
 
         stage('Build API Gateway Image') {
+            when {
+                expression {
+                    env.DEPLOY_ENABLED == 'true'
+                }
+            }
             steps {
                 sh '''
                     docker build \
@@ -158,6 +233,11 @@ pipeline {
         }
 
         stage('Build Frontend Image') {
+            when {
+                expression {
+                    env.DEPLOY_ENABLED == 'true'
+                }
+            }
             steps {
                 sh '''
                     docker build \
@@ -170,6 +250,11 @@ pipeline {
         }
 
         stage('Push Images to Docker Hub') {
+            when {
+                expression {
+                    env.DEPLOY_ENABLED == 'true'
+                }
+            }
             steps {
                 withCredentials([
                     usernamePassword(
@@ -204,6 +289,11 @@ pipeline {
         }
 
         stage('Deploy to OpenShift with Helm') {
+            when {
+                expression {
+                    env.DEPLOY_ENABLED == 'true'
+                }
+            }
             steps {
                 withCredentials([
                     string(
@@ -256,41 +346,69 @@ pipeline {
 
     post {
         success {
-            echo """
-                CI/CD pipeline completed successfully.
+            script {
+                echo """
+                    Pipeline completed successfully.
 
-                Version:
-                ${IMAGE_TAG}
+                    Selected environment:
+                    ${params.DEPLOY_ENV}
 
-                Helm release:
-                Helm values profile:
-                ${HELM_VALUES_FILE}
+                    Helm release:
+                    ${env.HELM_RELEASE_NAME}
 
-                Docker Hub images:
-                ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-service:${IMAGE_TAG}
-                ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/notification-service:${IMAGE_TAG}
-                ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/analytics-service:${IMAGE_TAG}
-                ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/api-gateway:${IMAGE_TAG}
-                ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-management-frontend:${IMAGE_TAG}
+                    Helm values profile:
+                    ${env.HELM_VALUES_FILE}
 
-                OpenShift project:
-                ${OPENSHIFT_NAMESPACE}
-            """
+                    Target namespace:
+                    ${env.OPENSHIFT_NAMESPACE}
+
+                    Deployment enabled:
+                    ${env.DEPLOY_ENABLED}
+
+                    Image version:
+                    ${env.IMAGE_TAG}
+                """
+
+                if (env.DEPLOY_ENABLED == 'true') {
+                    echo """
+                        Docker Hub images:
+                        ${env.DOCKER_REGISTRY}/${env.DOCKER_NAMESPACE}/task-service:${env.IMAGE_TAG}
+                        ${env.DOCKER_REGISTRY}/${env.DOCKER_NAMESPACE}/notification-service:${env.IMAGE_TAG}
+                        ${env.DOCKER_REGISTRY}/${env.DOCKER_NAMESPACE}/analytics-service:${env.IMAGE_TAG}
+                        ${env.DOCKER_REGISTRY}/${env.DOCKER_NAMESPACE}/api-gateway:${env.IMAGE_TAG}
+                        ${env.DOCKER_REGISTRY}/${env.DOCKER_NAMESPACE}/task-management-frontend:${env.IMAGE_TAG}
+
+                        OpenShift deployment:
+                        Completed successfully.
+                    """
+                } else {
+                    echo """
+                        Validation-only mode completed.
+
+                        Images were not built or pushed.
+                        OpenShift deployment was not performed because
+                        a separate ${params.DEPLOY_ENV} namespace is not available.
+                    """
+                }
+            }
         }
 
         failure {
-            echo '''
+            echo """
                 Pipeline failed.
 
+                Selected environment:
+                ${params.DEPLOY_ENV}
+
                 Check the failed Jenkins stage and its console logs.
-                If the OpenShift login failed, renew the openshift-token credential.
-            '''
+                If OpenShift login failed, renew the openshift-token credential.
+            """
         }
 
         always {
             sh '''
-                docker logout "$DOCKER_REGISTRY" || true
-                oc logout || true
+                docker logout "$DOCKER_REGISTRY" >/dev/null 2>&1 || true
+                oc logout >/dev/null 2>&1 || true
             '''
 
             deleteDir()
