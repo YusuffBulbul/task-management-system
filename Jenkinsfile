@@ -242,7 +242,7 @@ pipeline {
                         oc get jobs \
                           --namespace "$OPENSHIFT_NAMESPACE"
 
-                        oc get route frontend \
+                        oc get routes \
                           --namespace "$OPENSHIFT_NAMESPACE"
                     '''
                 }
