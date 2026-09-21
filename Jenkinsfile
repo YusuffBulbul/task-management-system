@@ -19,13 +19,7 @@ pipeline {
         DOCKER_REGISTRY = 'docker.io'
         DOCKER_NAMESPACE = 'yusuffbulbul'
         IMAGE_TAG = "1.0.${BUILD_NUMBER}"
-
         HELM_CHART_PATH = 'helm/task-management'
-
-        OPENSHIFT_NAMESPACE = ''
-        HELM_RELEASE_NAME = ''
-        HELM_VALUES_FILE = ''
-        DEPLOY_ENABLED = 'false'
     }
 
     stages {
