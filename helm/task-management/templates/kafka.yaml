@@ -76,6 +76,9 @@ spec:
             - name: controller
               containerPort: {{ .Values.kafka.service.controllerPort }}
               protocol: TCP
+            - name: external
+              containerPort: {{ .Values.kafka.service.externalPort }}
+              protocol: TCP
           resources:
             {{- toYaml .Values.kafka.resources | nindent 12 }}
           readinessProbe:
@@ -138,6 +141,10 @@ spec:
     - name: controller
       port: {{ .Values.kafka.service.controllerPort }}
       targetPort: controller
+      protocol: TCP
+    - name: external
+      port: {{ .Values.kafka.service.externalPort }}
+      targetPort: external
       protocol: TCP
 
   {{- end }}

@@ -17,9 +17,11 @@ data:
     controller.quorum.voters=1@localhost:{{ .Values.kafka.service.controllerPort }}
     controller.listener.names=CONTROLLER
 
-    listeners=PLAINTEXT://0.0.0.0:{{ .Values.kafka.service.brokerPort }},CONTROLLER://0.0.0.0:{{ .Values.kafka.service.controllerPort }}
-    advertised.listeners=PLAINTEXT://{{ .Values.kafka.service.name }}:{{ .Values.kafka.service.brokerPort }}
-    listener.security.protocol.map=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+    listeners=PLAINTEXT://0.0.0.0:{{ .Values.kafka.service.brokerPort }},CONTROLLER://0.0.0.0:{{ .Values.kafka.service.controllerPort }},EXTERNAL://0.0.0.0:{{ .Values.kafka.service.externalPort }}
+
+    advertised.listeners=PLAINTEXT://{{ .Values.kafka.service.name }}:{{ .Values.kafka.service.brokerPort }},EXTERNAL://localhost:{{ .Values.kafka.service.externalPort }}
+
+    listener.security.protocol.map=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
     inter.broker.listener.name=PLAINTEXT
 
     log.dirs=/var/lib/kafka/data

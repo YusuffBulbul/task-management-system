@@ -46,6 +46,7 @@ kafka:
     name: kafka
     brokerPort: 9092
     controllerPort: 9093
+    externalPort: 39092
 
   persistence:
     enabled: true
