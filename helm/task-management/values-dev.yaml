@@ -1,0 +1,136 @@
+global:
+  imagePullPolicy: Always
+
+mongodb:
+  persistence:
+    enabled: true
+    size: 1Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+kafka:
+  service:
+    externalPort: 39092
+
+  persistence:
+    enabled: true
+    size: 1Gi
+
+  topics:
+    partitions: 3
+    replicationFactor: 1
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  initResources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+taskService:
+  deployment:
+    replicas: 1
+
+  javaOptions: "-Xms128m -Xmx320m"
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+notificationService:
+  deployment:
+    replicas: 1
+
+  javaOptions: "-Xms128m -Xmx320m"
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+analyticsService:
+  deployment:
+    replicas: 1
+
+  javaOptions: "-Xms128m -Xmx320m"
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+apiGateway:
+  deployment:
+    replicas: 1
+
+  javaOptions: "-Xms128m -Xmx320m"
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+frontend:
+  deployment:
+    replicas: 1
+
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+route:
+  enabled: true
+  name: task-management
+
+probes:
+  springBoot:
+    readiness:
+      initialDelaySeconds: 25
+      periodSeconds: 10
+      failureThreshold: 12
+    liveness:
+      initialDelaySeconds: 60
+      periodSeconds: 20
+      failureThreshold: 5
+
+  frontend:
+    readiness:
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      failureThreshold: 6
+    liveness:
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      failureThreshold: 5
