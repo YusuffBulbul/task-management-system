@@ -2,6 +2,8 @@ FROM jenkins/jenkins:lts-jdk21
 
 USER root
 
+ARG HELM_VERSION=v3.19.0
+
 RUN apt-get update \
     && apt-get install -y \
         ca-certificates \
@@ -33,6 +35,14 @@ RUN curl -fsSL \
        -C /usr/local/bin oc \
     && chmod +x /usr/local/bin/oc \
     && rm -f /tmp/openshift-client.tar.gz
+
+RUN curl -fsSL \
+      https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz \
+      -o /tmp/helm.tar.gz \
+    && tar -xzf /tmp/helm.tar.gz -C /tmp \
+    && mv /tmp/linux-amd64/helm /usr/local/bin/helm \
+    && chmod +x /usr/local/bin/helm \
+    && rm -rf /tmp/helm.tar.gz /tmp/linux-amd64
 
 RUN jenkins-plugin-cli --plugins \
     workflow-aggregator \

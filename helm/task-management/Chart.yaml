@@ -1,0 +1,17 @@
+apiVersion: v2
+name: task-management
+description: Task Management System için OpenShift Helm chart
+type: application
+version: 0.1.0
+appVersion: "1.0.5"
+
+keywords:
+  - microservices
+  - spring-boot
+  - react
+  - kafka
+  - mongodb
+  - openshift
+
+maintainers:
+  - name: Yusuf Bulbul

@@ -1,0 +1,94 @@
+{{- if .Values.apiGateway.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.apiGateway.deployment.name }}
+  labels:
+    app: {{ .Values.apiGateway.deployment.name }}
+    app.kubernetes.io/name: {{ .Values.apiGateway.deployment.name }}
+    app.kubernetes.io/component: gateway
+    {{- include "task-management.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.apiGateway.deployment.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.apiGateway.deployment.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.apiGateway.deployment.name }}
+        app.kubernetes.io/name: {{ .Values.apiGateway.deployment.name }}
+        app.kubernetes.io/component: gateway
+        {{- include "task-management.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: api-gateway
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.global.imageNamespace }}/{{ .Values.apiGateway.image.repository }}:{{ .Values.global.imageTag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+
+          ports:
+            - name: http
+              containerPort: {{ .Values.apiGateway.service.port }}
+              protocol: TCP
+
+          env:
+            - name: SERVER_PORT
+              value: {{ .Values.apiGateway.service.port | quote }}
+
+            - name: TASK_SERVICE_URL
+              value: "http://{{ .Values.taskService.service.name }}:{{ .Values.taskService.service.port }}"
+
+            - name: ANALYTICS_SERVICE_URL
+              value: "http://{{ .Values.analyticsService.service.name }}:{{ .Values.analyticsService.service.port }}"
+
+            - name: JAVA_TOOL_OPTIONS
+              value: {{ .Values.apiGateway.javaOptions | quote }}
+
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.probes.springBoot.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.springBoot.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.springBoot.readiness.failureThreshold }}
+
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.probes.springBoot.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.springBoot.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.springBoot.liveness.failureThreshold }}
+
+          resources:
+            {{- toYaml .Values.apiGateway.resources | nindent 12 }}
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.apiGateway.service.name }}
+  labels:
+    app: {{ .Values.apiGateway.deployment.name }}
+    app.kubernetes.io/name: {{ .Values.apiGateway.deployment.name }}
+    app.kubernetes.io/component: gateway
+    {{- include "task-management.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: {{ .Values.apiGateway.deployment.name }}
+  ports:
+    - name: http
+      port: {{ .Values.apiGateway.service.port }}
+      targetPort: http
+      protocol: TCP
+  type: ClusterIP
+  {{- end }}

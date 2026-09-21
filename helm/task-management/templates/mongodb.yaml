@@ -1,0 +1,111 @@
+{{- if .Values.mongodb.enabled }}
+
+  {{- if .Values.mongodb.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.mongodb.persistence.claimName }}
+  labels:
+    {{- include "task-management.labels" . | nindent 4 }}
+    app: mongodb
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/component: database
+spec:
+  accessModes:
+    - {{ .Values.mongodb.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.mongodb.persistence.size }}
+---
+  {{- end }}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+  labels:
+    {{- include "task-management.labels" . | nindent 4 }}
+    app: mongodb
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/component: database
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+        app.kubernetes.io/name: mongodb
+        app.kubernetes.io/component: database
+    spec:
+      containers:
+        - name: mongodb
+          image: >-
+            {{ .Values.global.imageRegistry }}/{{ .Values.mongodb.image.repository }}:{{ .Values.mongodb.image.tag }}
+          imagePullPolicy: {{ .Values.mongodb.image.pullPolicy }}
+          args:
+            - mongod
+            - --bind_ip_all
+          ports:
+            - name: mongodb
+              containerPort: {{ .Values.mongodb.service.port }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.mongodb.resources | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: mongodb
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: mongodb
+            initialDelaySeconds: 40
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: mongodb-data
+              mountPath: /data/db
+      volumes:
+        - name: mongodb-data
+          {{- if .Values.mongodb.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.mongodb.persistence.claimName }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.mongodb.service.name }}
+  labels:
+    {{- include "task-management.labels" . | nindent 4 }}
+    app: mongodb
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  selector:
+    app: mongodb
+  ports:
+    - name: mongodb
+      port: {{ .Values.mongodb.service.port }}
+      targetPort: mongodb
+      protocol: TCP
+
+  {{- end }}

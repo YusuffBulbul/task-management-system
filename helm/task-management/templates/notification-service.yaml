@@ -1,0 +1,69 @@
+{{- if .Values.notificationService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.notificationService.deployment.name }}
+  labels:
+    app: {{ .Values.notificationService.deployment.name }}
+    app.kubernetes.io/name: {{ .Values.notificationService.deployment.name }}
+    app.kubernetes.io/component: backend
+    {{- include "task-management.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.notificationService.deployment.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.notificationService.deployment.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.notificationService.deployment.name }}
+        app.kubernetes.io/name: {{ .Values.notificationService.deployment.name }}
+        app.kubernetes.io/component: backend
+        {{- include "task-management.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: notification-service
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.global.imageNamespace }}/{{ .Values.notificationService.image.repository }}:{{ .Values.global.imageTag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.notificationService.port }}
+              protocol: TCP
+          env:
+            - name: SERVER_PORT
+              value: {{ .Values.notificationService.port | quote }}
+
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: "{{ .Values.kafka.service.name }}:{{ .Values.kafka.service.brokerPort }}"
+
+            - name: JAVA_TOOL_OPTIONS
+              value: {{ .Values.notificationService.javaOptions | quote }}
+
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.probes.springBoot.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.springBoot.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.springBoot.readiness.failureThreshold }}
+
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.probes.springBoot.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.springBoot.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.springBoot.liveness.failureThreshold }}
+
+          resources:
+            {{- toYaml .Values.notificationService.resources | nindent 12 }}
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+  {{- end }}

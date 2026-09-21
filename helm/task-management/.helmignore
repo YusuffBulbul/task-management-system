@@ -1,0 +1,29 @@
+# Git dosyaları
+.git/
+.gitignore
+.gitattributes
+
+# IDE dosyaları
+.idea/
+.vscode/
+*.iml
+
+# İşletim sistemi dosyaları
+.DS_Store
+Thumbs.db
+
+# Geçici ve yedek dosyalar
+*.tmp
+*.temp
+*.swp
+*.bak
+*~
+
+# Log dosyaları
+*.log
+
+# Paketlenmiş Helm chart dosyaları
+*.tgz
+
+# Test ve geliştirme çıktıları
+rendered.yaml

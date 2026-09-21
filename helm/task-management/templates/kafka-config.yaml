@@ -1,0 +1,35 @@
+{{- if .Values.kafka.enabled }}
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-config
+  labels:
+    {{- include "task-management.labels" . | nindent 4 }}
+    app: kafka
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/component: messaging
+data:
+  server.properties: |
+    process.roles=broker,controller
+    node.id=1
+
+    controller.quorum.voters=1@localhost:{{ .Values.kafka.service.controllerPort }}
+    controller.listener.names=CONTROLLER
+
+    listeners=PLAINTEXT://0.0.0.0:{{ .Values.kafka.service.brokerPort }},CONTROLLER://0.0.0.0:{{ .Values.kafka.service.controllerPort }}
+    advertised.listeners=PLAINTEXT://{{ .Values.kafka.service.name }}:{{ .Values.kafka.service.brokerPort }}
+    listener.security.protocol.map=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+    inter.broker.listener.name=PLAINTEXT
+
+    log.dirs=/var/lib/kafka/data
+    num.partitions=1
+
+    offsets.topic.replication.factor=1
+    transaction.state.log.replication.factor=1
+    transaction.state.log.min.isr=1
+
+    group.initial.rebalance.delay.ms=0
+    auto.create.topics.enable=false
+
+  {{- end }}

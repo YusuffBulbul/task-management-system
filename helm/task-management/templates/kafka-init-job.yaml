@@ -1,0 +1,96 @@
+{{- if .Values.kafka.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-init
+  labels:
+    app: kafka-init
+    app.kubernetes.io/name: kafka-init
+    app.kubernetes.io/component: messaging-initialization
+    {{- include "task-management.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app: kafka-init
+        app.kubernetes.io/name: kafka-init
+        app.kubernetes.io/component: messaging-initialization
+    spec:
+      restartPolicy: OnFailure
+
+      containers:
+        - name: kafka-init
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.kafka.image.repository }}:{{ .Values.kafka.image.tag }}"
+          imagePullPolicy: {{ .Values.kafka.image.pullPolicy }}
+
+          command:
+            - /bin/bash
+            - -ec
+
+          args:
+            - |
+              mkdir -p "${LOG_DIR}"
+
+              echo "Kafka bağlantısı bekleniyor..."
+
+              until /opt/kafka/bin/kafka-topics.sh \
+                --bootstrap-server "{{ .Values.kafka.service.name }}:{{ .Values.kafka.service.brokerPort }}" \
+                --list > /dev/null 2>&1
+              do
+                echo "Kafka henüz hazır değil. 5 saniye sonra tekrar denenecek."
+                sleep 5
+              done
+
+              echo "Kafka bağlantısı başarılı."
+
+              /opt/kafka/bin/kafka-topics.sh \
+                --bootstrap-server "{{ .Values.kafka.service.name }}:{{ .Values.kafka.service.brokerPort }}" \
+                --create \
+                --if-not-exists \
+                --topic "{{ .Values.kafka.topics.taskEvents }}" \
+                --partitions {{ .Values.kafka.topics.partitions }} \
+                --replication-factor {{ .Values.kafka.topics.replicationFactor }}
+
+              /opt/kafka/bin/kafka-topics.sh \
+                --bootstrap-server "{{ .Values.kafka.service.name }}:{{ .Values.kafka.service.brokerPort }}" \
+                --create \
+                --if-not-exists \
+                --topic "{{ .Values.kafka.topics.notificationEvents }}" \
+                --partitions {{ .Values.kafka.topics.partitions }} \
+                --replication-factor {{ .Values.kafka.topics.replicationFactor }}
+
+              echo "Kafka topic listesi:"
+
+              /opt/kafka/bin/kafka-topics.sh \
+                --bootstrap-server "{{ .Values.kafka.service.name }}:{{ .Values.kafka.service.brokerPort }}" \
+                --list
+
+          env:
+            - name: LOG_DIR
+              value: /tmp/kafka-init-logs
+
+            - name: KAFKA_HEAP_OPTS
+              value: "-Xms128m -Xmx256m"
+
+          resources:
+            {{- toYaml .Values.kafka.initResources | nindent 12 }}
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+  {{- end }}

@@ -1,0 +1,220 @@
+global:
+  imageRegistry: docker.io
+  imageNamespace: yusuffbulbul
+  imageTag: "1.0.5"
+  imagePullPolicy: Always
+
+mongodb:
+  enabled: true
+
+  image:
+    repository: library/mongo
+    tag: "8.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    name: mongodb
+    port: 27017
+
+  database:
+    task: taskdb
+    analytics: analyticsdb
+
+  persistence:
+    enabled: true
+    claimName: mongodb-data
+    size: 1Gi
+    accessMode: ReadWriteOnce
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+kafka:
+  enabled: true
+
+  image:
+    repository: apache/kafka
+    tag: "4.1.1"
+    pullPolicy: IfNotPresent
+
+  service:
+    name: kafka
+    brokerPort: 9092
+    controllerPort: 9093
+
+  persistence:
+    enabled: true
+    claimName: kafka-data
+    size: 1Gi
+    accessMode: ReadWriteOnce
+
+  clusterId: 5L6g3nShT-eMCtK--X86sw
+
+  topics:
+    taskEvents: task-events
+    notificationEvents: notification-events
+    partitions: 3
+    replicationFactor: 1
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  initResources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+taskService:
+  enabled: true
+
+  image:
+    repository: task-service
+
+  deployment:
+    name: task-service
+    replicas: 1
+
+  service:
+    name: task-service
+    port: 8081
+
+  javaOptions: "-Xms128m -Xmx320m"
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+notificationService:
+  enabled: true
+
+  image:
+    repository: notification-service
+
+  deployment:
+    name: notification-service
+    replicas: 1
+
+  port: 8082
+  javaOptions: "-Xms128m -Xmx320m"
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+analyticsService:
+  enabled: true
+
+  image:
+    repository: analytics-service
+
+  deployment:
+    name: analytics-service
+    replicas: 1
+
+  service:
+    name: analytics-service
+    port: 8083
+
+  javaOptions: "-Xms128m -Xmx320m"
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+apiGateway:
+  enabled: true
+
+  image:
+    repository: api-gateway
+
+  deployment:
+    name: api-gateway
+    replicas: 1
+
+  service:
+    name: api-gateway-container
+    port: 8084
+
+  javaOptions: "-Xms128m -Xmx320m"
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+frontend:
+  enabled: true
+
+  image:
+    repository: task-management-frontend
+
+  deployment:
+    name: frontend
+    replicas: 1
+
+  service:
+    name: frontend
+    port: 8080
+
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+route:
+  enabled: true
+  name: task-management
+  tlsTermination: edge
+  insecureEdgeTerminationPolicy: Redirect
+
+probes:
+  springBoot:
+    readiness:
+      initialDelaySeconds: 25
+      periodSeconds: 10
+      failureThreshold: 12
+    liveness:
+      initialDelaySeconds: 60
+      periodSeconds: 20
+      failureThreshold: 5
+
+  frontend:
+    readiness:
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      failureThreshold: 6
+    liveness:
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      failureThreshold: 5

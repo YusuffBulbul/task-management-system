@@ -1,0 +1,143 @@
+{{- if .Values.kafka.enabled }}
+
+  {{- if .Values.kafka.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.kafka.persistence.claimName }}
+  labels:
+    {{- include "task-management.labels" . | nindent 4 }}
+    app: kafka
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/component: messaging
+spec:
+  accessModes:
+    - {{ .Values.kafka.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.kafka.persistence.size }}
+---
+  {{- end }}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  labels:
+    {{- include "task-management.labels" . | nindent 4 }}
+    app: kafka
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/component: messaging
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+        app.kubernetes.io/name: kafka
+        app.kubernetes.io/component: messaging
+      annotations:
+        checksum/kafka-config: {{ include (print $.Template.BasePath "/kafka-config.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: kafka
+          image: >-
+            {{ .Values.global.imageRegistry }}/{{ .Values.kafka.image.repository }}:{{ .Values.kafka.image.tag }}
+          imagePullPolicy: {{ .Values.kafka.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -ec
+          args:
+            - |
+              mkdir -p /tmp/kafka-logs
+              mkdir -p /var/lib/kafka/data
+
+              /opt/kafka/bin/kafka-storage.sh format \
+                --ignore-formatted \
+                --cluster-id {{ .Values.kafka.clusterId }} \
+                --config /etc/kafka-custom/server.properties
+
+              exec /opt/kafka/bin/kafka-server-start.sh \
+                /etc/kafka-custom/server.properties
+          env:
+            - name: LOG_DIR
+              value: /tmp/kafka-logs
+            - name: KAFKA_HEAP_OPTS
+              value: "-Xms256m -Xmx512m"
+          ports:
+            - name: kafka
+              containerPort: {{ .Values.kafka.service.brokerPort }}
+              protocol: TCP
+            - name: controller
+              containerPort: {{ .Values.kafka.service.controllerPort }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.kafka.resources | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: kafka
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            tcpSocket:
+              port: kafka
+            initialDelaySeconds: 90
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: kafka-data
+              mountPath: /var/lib/kafka
+            - name: kafka-config
+              mountPath: /etc/kafka-custom
+              readOnly: true
+      volumes:
+        - name: kafka-data
+          {{- if .Values.kafka.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.kafka.persistence.claimName }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: kafka-config
+          configMap:
+            name: kafka-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.kafka.service.name }}
+  labels:
+    {{- include "task-management.labels" . | nindent 4 }}
+    app: kafka
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/component: messaging
+spec:
+  type: ClusterIP
+  selector:
+    app: kafka
+  ports:
+    - name: kafka
+      port: {{ .Values.kafka.service.brokerPort }}
+      targetPort: kafka
+      protocol: TCP
+    - name: controller
+      port: {{ .Values.kafka.service.controllerPort }}
+      targetPort: controller
+      protocol: TCP
+
+  {{- end }}

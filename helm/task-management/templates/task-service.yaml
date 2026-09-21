@@ -1,0 +1,92 @@
+{{- if .Values.taskService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.taskService.deployment.name }}
+  labels:
+    app: {{ .Values.taskService.deployment.name }}
+    app.kubernetes.io/name: {{ .Values.taskService.deployment.name }}
+    app.kubernetes.io/component: backend
+    {{- include "task-management.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.taskService.deployment.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.taskService.deployment.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.taskService.deployment.name }}
+        app.kubernetes.io/name: {{ .Values.taskService.deployment.name }}
+        app.kubernetes.io/component: backend
+        {{- include "task-management.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: task-service
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.global.imageNamespace }}/{{ .Values.taskService.image.repository }}:{{ .Values.global.imageTag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.taskService.service.port }}
+              protocol: TCP
+          env:
+            - name: SERVER_PORT
+              value: {{ .Values.taskService.service.port | quote }}
+
+            - name: SPRING_DATA_MONGODB_URI
+              value: "mongodb://{{ .Values.mongodb.service.name }}:{{ .Values.mongodb.service.port }}/{{ .Values.mongodb.database.task }}"
+
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: "{{ .Values.kafka.service.name }}:{{ .Values.kafka.service.brokerPort }}"
+
+            - name: JAVA_TOOL_OPTIONS
+              value: {{ .Values.taskService.javaOptions | quote }}
+
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.probes.springBoot.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.springBoot.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.springBoot.readiness.failureThreshold }}
+
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.probes.springBoot.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.springBoot.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.springBoot.liveness.failureThreshold }}
+
+          resources:
+            {{- toYaml .Values.taskService.resources | nindent 12 }}
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.taskService.service.name }}
+  labels:
+    app: {{ .Values.taskService.deployment.name }}
+    app.kubernetes.io/name: {{ .Values.taskService.deployment.name }}
+    app.kubernetes.io/component: backend
+    {{- include "task-management.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: {{ .Values.taskService.deployment.name }}
+  ports:
+    - name: http
+      port: {{ .Values.taskService.service.port }}
+      targetPort: http
+      protocol: TCP
+  type: ClusterIP
+  {{- end }}
