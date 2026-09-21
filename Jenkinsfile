@@ -12,6 +12,8 @@ pipeline {
         DOCKER_NAMESPACE = 'yusuffbulbul'
         IMAGE_TAG = "1.0.${BUILD_NUMBER}"
         OPENSHIFT_NAMESPACE = 'yusuffbulbul-dev'
+        HELM_RELEASE_NAME = 'task-management'
+        HELM_CHART_PATH = 'helm/task-management'
     }
 
     stages {
@@ -85,6 +87,22 @@ pipeline {
                         npm run build
                     '''
                 }
+            }
+        }
+
+        stage('Validate Helm Chart') {
+            steps {
+                sh '''
+                    helm lint "${HELM_CHART_PATH}"
+
+                    helm template "${HELM_RELEASE_NAME}" \
+                      "${HELM_CHART_PATH}" \
+                      --namespace "${OPENSHIFT_NAMESPACE}" \
+                      --set-string global.imageTag="${IMAGE_TAG}" \
+                      > /tmp/task-management-rendered.yaml
+
+                    echo "Helm chart validation completed successfully."
+                '''
             }
         }
 
@@ -182,7 +200,7 @@ pipeline {
             }
         }
 
-        stage('Deploy to OpenShift') {
+        stage('Deploy to OpenShift with Helm') {
             steps {
                 withCredentials([
                     string(
@@ -201,35 +219,31 @@ pipeline {
 
                         oc project "$OPENSHIFT_NAMESPACE"
 
-                        oc set image deployment/task-service \
-                          task-service=${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-service:${IMAGE_TAG}
+                        helm upgrade --install "$HELM_RELEASE_NAME" \
+                          "$HELM_CHART_PATH" \
+                          --namespace "$OPENSHIFT_NAMESPACE" \
+                          --set-string global.imageTag="$IMAGE_TAG" \
+                          --take-ownership \
+                          --wait \
+                          --wait-for-jobs \
+                          --timeout 15m
 
-                        oc set image deployment/notification-service \
-                          notification-service=${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/notification-service:${IMAGE_TAG}
+                        echo "Helm deployment completed successfully."
 
-                        oc set image deployment/analytics-service \
-                          analytics-service=${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/analytics-service:${IMAGE_TAG}
+                        helm status "$HELM_RELEASE_NAME" \
+                          --namespace "$OPENSHIFT_NAMESPACE"
 
-                        oc set image deployment/api-gateway \
-                          api-gateway=${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/api-gateway:${IMAGE_TAG}
+                        oc get deployments \
+                          --namespace "$OPENSHIFT_NAMESPACE"
 
-                        oc set image deployment/frontend \
-                          frontend=${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-management-frontend:${IMAGE_TAG}
+                        oc get pods \
+                          --namespace "$OPENSHIFT_NAMESPACE"
 
-                        oc rollout status deployment/task-service \
-                          --timeout=300s
+                        oc get jobs \
+                          --namespace "$OPENSHIFT_NAMESPACE"
 
-                        oc rollout status deployment/notification-service \
-                          --timeout=300s
-
-                        oc rollout status deployment/analytics-service \
-                          --timeout=300s
-
-                        oc rollout status deployment/api-gateway \
-                          --timeout=300s
-
-                        oc rollout status deployment/frontend \
-                          --timeout=300s
+                        oc get route frontend \
+                          --namespace "$OPENSHIFT_NAMESPACE"
                     '''
                 }
             }
@@ -241,7 +255,11 @@ pipeline {
             echo """
                 CI/CD pipeline completed successfully.
 
-                Version: ${IMAGE_TAG}
+                Version:
+                ${IMAGE_TAG}
+
+                Helm release:
+                ${HELM_RELEASE_NAME}
 
                 Docker Hub images:
                 ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-service:${IMAGE_TAG}
@@ -256,7 +274,12 @@ pipeline {
         }
 
         failure {
-            echo 'Pipeline failed. Check the failed stage logs.'
+            echo '''
+                Pipeline failed.
+
+                Check the failed Jenkins stage and its console logs.
+                If the OpenShift login failed, renew the openshift-token credential.
+            '''
         }
 
         always {
