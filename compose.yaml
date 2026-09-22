@@ -4,7 +4,7 @@ services:
     container_name: task-management-mongodb
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27018:27017"
     command:
       - mongod
       - --bind_ip_all
@@ -94,6 +94,30 @@ services:
     networks:
       - task-management-network
 
+  auth-service:
+    image: localhost/auth-service:local
+    build:
+      context: ./auth-service
+      dockerfile: Containerfile
+    container_name: auth-service-container
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_MONGODB_URI: mongodb://mongodb:27017/authdb
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+    healthcheck:
+      test: [ "CMD-SHELL", "curl --fail --silent --show-error --max-time 5 http://127.0.0.1:8085/actuator/health >/dev/null" ]
+      interval: 10s
+      timeout: 6s
+      retries: 10
+      start_period: 30s
+    networks:
+      - task-management-network
+
   task-service:
     image: localhost/task-service:local
     build:
@@ -160,14 +184,20 @@ services:
     container_name: api-gateway-container
     restart: unless-stopped
     depends_on:
-      - task-service
-      - analytics-service
+      auth-service:
+        condition: service_healthy
+      task-service:
+        condition: service_started
+      analytics-service:
+        condition: service_started
     ports:
       - "8084:8084"
     environment:
       SERVER_PORT: 8084
+      AUTH_SERVICE_URL: http://auth-service-container:8085
       TASK_SERVICE_URL: http://task-service-container:8081
       ANALYTICS_SERVICE_URL: http://analytics-service-container:8083
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
     networks:
       - task-management-network
 
