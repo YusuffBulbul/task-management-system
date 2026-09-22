@@ -128,6 +128,14 @@ pipeline {
             }
         }
 
+        stage('Auth Service Test') {
+            steps {
+                dir('auth-service') {
+                    sh 'mvn clean test'
+                }
+            }
+        }
+
         stage('Frontend Test and Build') {
             steps {
                 dir('frontend') {
@@ -144,14 +152,15 @@ pipeline {
             steps {
                 sh '''
                     helm lint "${HELM_CHART_PATH}" \
-                      --values "${HELM_VALUES_FILE}"
+                      --values "${HELM_VALUES_FILE}" \
+                      --set-string global.imageTag="${IMAGE_TAG}"
 
                     helm template "${HELM_RELEASE_NAME}" \
                       "${HELM_CHART_PATH}" \
                       --namespace "${OPENSHIFT_NAMESPACE}" \
                       --values "${HELM_VALUES_FILE}" \
                       --set-string global.imageTag="${IMAGE_TAG}" \
-                      > /tmp/task-management-rendered.yaml
+                      > task-management-rendered.yaml
 
                     echo "Helm ${DEPLOY_ENV} profile validation completed successfully."
                 '''
@@ -226,6 +235,23 @@ pipeline {
             }
         }
 
+        stage('Build Auth Service Image') {
+            when {
+                expression {
+                    env.DEPLOY_ENABLED == 'true'
+                }
+            }
+            steps {
+                sh '''
+                    docker build \
+                      --load \
+                      --file auth-service/Containerfile \
+                      --tag ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/auth-service:${IMAGE_TAG} \
+                      auth-service
+                '''
+            }
+        }
+
         stage('Build Frontend Image') {
             when {
                 expression {
@@ -258,7 +284,8 @@ pipeline {
                     )
                 ]) {
                     sh '''
-                        echo "$DOCKERHUB_TOKEN" |
+                        set +x
+                        printf '%s' "$DOCKERHUB_TOKEN" |
                           docker login "$DOCKER_REGISTRY" \
                             --username "$DOCKERHUB_USERNAME" \
                             --password-stdin
@@ -274,6 +301,9 @@ pipeline {
 
                         docker push \
                           ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/api-gateway:${IMAGE_TAG}
+
+                        docker push \
+                          ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/auth-service:${IMAGE_TAG}
 
                         docker push \
                           ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/task-management-frontend:${IMAGE_TAG}
@@ -300,11 +330,45 @@ pipeline {
                     )
                 ]) {
                     sh '''
+                        set +x
                         oc login \
                           --server="$OPENSHIFT_SERVER" \
                           --token="$OPENSHIFT_TOKEN"
 
                         oc project "$OPENSHIFT_NAMESPACE"
+
+                        # Read only the rendered Secret reference, never Secret data.
+                        helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+                          --namespace "$OPENSHIFT_NAMESPACE" \
+                          --values "$HELM_VALUES_FILE" \
+                          --set-string global.imageTag="$IMAGE_TAG" \
+                          --show-only templates/auth-service.yaml \
+                          > auth-service-rendered.yaml
+
+                        JWT_REFERENCE=$(oc create --dry-run=client --validate=false \
+                          --namespace "$OPENSHIFT_NAMESPACE" \
+                          --filename auth-service-rendered.yaml \
+                          -o go-template='{{if eq .kind "Deployment"}}{{range .spec.template.spec.containers}}{{range .env}}{{if eq .name "JWT_SECRET"}}{{.valueFrom.secretKeyRef.name}}:{{.valueFrom.secretKeyRef.key}}{{end}}{{end}}{{end}}{{end}}')
+                        JWT_SECRET_NAME=${JWT_REFERENCE%:*}
+                        JWT_SECRET_KEY=${JWT_REFERENCE#*:}
+
+                        if [ -z "$JWT_SECRET_NAME" ] || [ "$JWT_SECRET_KEY" != 'JWT_SECRET' ]; then
+                            echo "ERROR: $HELM_VALUES_FILE must define an existing JWT Secret with key JWT_SECRET." >&2
+                            exit 1
+                        fi
+
+                        # The Go template compares key names and emits only a fixed marker.
+                        if ! JWT_KEY_PRESENT=$(oc get secret "$JWT_SECRET_NAME" \
+                          --namespace "$OPENSHIFT_NAMESPACE" \
+                          -o go-template='{{range $key, $ignored := .data}}{{if eq $key "JWT_SECRET"}}present{{end}}{{end}}'); then
+                            echo "ERROR: JWT Secret '$JWT_SECRET_NAME' is missing or inaccessible in namespace '$OPENSHIFT_NAMESPACE'. Create it with key JWT_SECRET and grant the deployer permission to get it before deployment." >&2
+                            exit 1
+                        fi
+
+                        if [ "$JWT_KEY_PRESENT" != 'present' ]; then
+                            echo "ERROR: JWT Secret '$JWT_SECRET_NAME' in namespace '$OPENSHIFT_NAMESPACE' is missing key JWT_SECRET. Add the key before deployment." >&2
+                            exit 1
+                        fi
 
                         helm upgrade --install "$HELM_RELEASE_NAME" \
                           "$HELM_CHART_PATH" \
@@ -315,6 +379,10 @@ pipeline {
                           --wait \
                           --wait-for-jobs \
                           --timeout 15m
+
+                        oc rollout status deployment/auth-service \
+                          --namespace "$OPENSHIFT_NAMESPACE" \
+                          --timeout=5m
 
                         echo "Helm deployment completed successfully."
 
@@ -370,6 +438,7 @@ pipeline {
                         ${env.DOCKER_REGISTRY}/${env.DOCKER_NAMESPACE}/notification-service:${env.IMAGE_TAG}
                         ${env.DOCKER_REGISTRY}/${env.DOCKER_NAMESPACE}/analytics-service:${env.IMAGE_TAG}
                         ${env.DOCKER_REGISTRY}/${env.DOCKER_NAMESPACE}/api-gateway:${env.IMAGE_TAG}
+                        ${env.DOCKER_REGISTRY}/${env.DOCKER_NAMESPACE}/auth-service:${env.IMAGE_TAG}
                         ${env.DOCKER_REGISTRY}/${env.DOCKER_NAMESPACE}/task-management-frontend:${env.IMAGE_TAG}
 
                         OpenShift deployment:

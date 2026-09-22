@@ -98,6 +98,24 @@ apiGateway:
       cpu: 500m
       memory: 512Mi
 
+jwt:
+  existingSecret:
+    name: task-management-dev-jwt
+
+authService:
+  deployment:
+    replicas: 1
+
+  javaOptions: "-Xms128m -Xmx320m"
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
 frontend:
   deployment:
     replicas: 1
