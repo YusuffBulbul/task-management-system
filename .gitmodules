@@ -13,3 +13,6 @@
 [submodule "frontend"]
 	path = frontend
 	url = https://github.com/YusuffBulbul/frontend.git
+[submodule "auth-service"]
+	path = auth-service
+	url = https://github.com/YusuffBulbul/auth-service.git
